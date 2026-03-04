@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Kunden Link Tracker
  * Description: Erfasst Aufrufe über den Parameter campaign, verwaltet Kundencodes und zeigt Statistiken im Backend.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: Codex
  * Requires at least: 6.0
  * Requires PHP: 7.4
@@ -209,25 +209,41 @@ final class Kunden_Link_Tracker
 
         global $wpdb;
 
+        $filters = $this->get_dashboard_filters();
+        $where_data = $this->build_visit_filter_where($filters);
+
         $campaign_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$this->campaign_table()}");
-        $visit_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$this->visit_table()}");
 
-        $top_campaigns = $wpdb->get_results(
-            "SELECT c.customer_name, c.campaign_code, COUNT(v.id) AS total_visits
-             FROM {$this->campaign_table()} c
-             LEFT JOIN {$this->visit_table()} v ON v.campaign_id = c.id
-             GROUP BY c.id
-             ORDER BY total_visits DESC, c.customer_name ASC
-             LIMIT 10"
-        );
+        $count_sql = "SELECT COUNT(v.id)
+            FROM {$this->visit_table()} v
+            INNER JOIN {$this->campaign_table()} c ON c.id = v.campaign_id
+            {$where_data['sql']}";
+        $filtered_visit_count = (int) $wpdb->get_var($this->prepare_query($count_sql, $where_data['params']));
 
-        $recent_visits = $wpdb->get_results(
-            "SELECT c.customer_name, v.campaign_code, v.visited_at, v.request_uri, v.referer_url
-             FROM {$this->visit_table()} v
-             INNER JOIN {$this->campaign_table()} c ON c.id = v.campaign_id
-             ORDER BY v.visited_at DESC
-             LIMIT 20"
-        );
+        $total_pages = max(1, (int) ceil($filtered_visit_count / $filters['per_page']));
+        if ($filters['current_page'] > $total_pages) {
+            $filters['current_page'] = $total_pages;
+        }
+
+        $top_campaigns_sql = "SELECT c.customer_name, c.campaign_code, COUNT(v.id) AS total_visits
+            FROM {$this->visit_table()} v
+            INNER JOIN {$this->campaign_table()} c ON c.id = v.campaign_id
+            {$where_data['sql']}
+            GROUP BY c.id
+            ORDER BY total_visits DESC, c.customer_name ASC
+            LIMIT 10";
+        $top_campaigns = $wpdb->get_results($this->prepare_query($top_campaigns_sql, $where_data['params']));
+
+        $offset = ($filters['current_page'] - 1) * $filters['per_page'];
+        $visit_query_params = array_merge($where_data['params'], [$filters['per_page'], $offset]);
+
+        $recent_visits_sql = "SELECT c.customer_name, v.campaign_code, v.visited_at, v.request_uri, v.referer_url
+            FROM {$this->visit_table()} v
+            INNER JOIN {$this->campaign_table()} c ON c.id = v.campaign_id
+            {$where_data['sql']}
+            ORDER BY v.visited_at DESC
+            LIMIT %d OFFSET %d";
+        $recent_visits = $wpdb->get_results($wpdb->prepare($recent_visits_sql, $visit_query_params));
 
         ?>
         <div class="wrap kunden-tracker-wrap">
@@ -238,6 +254,10 @@ final class Kunden_Link_Tracker
                 .kunden-card h2 { margin:0; font-size:14px; color:#50575e; }
                 .kunden-card .value { margin-top:10px; font-size:30px; font-weight:700; color:#1d2327; }
                 .kunden-table-wrap { background:#fff; border:1px solid #dcdcde; border-radius:8px; padding:12px; margin-top:16px; }
+                .kunden-filter-row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin:8px 0 14px; }
+                .kunden-filter-row label { display:block; font-weight:600; margin-bottom:4px; }
+                .kunden-filter-actions { display:flex; gap:8px; }
+                .kunden-pagination { display:flex; align-items:center; gap:10px; margin-top:12px; }
             </style>
 
             <div class="kunden-tracker-grid">
@@ -246,13 +266,18 @@ final class Kunden_Link_Tracker
                     <div class="value"><?php echo esc_html((string) $campaign_count); ?></div>
                 </div>
                 <div class="kunden-card">
-                    <h2>Gesamte Klicks</h2>
-                    <div class="value"><?php echo esc_html((string) $visit_count); ?></div>
+                    <h2>Klicks (gefiltert)</h2>
+                    <div class="value"><?php echo esc_html((string) $filtered_visit_count); ?></div>
                 </div>
             </div>
 
             <div class="kunden-table-wrap">
-                <h2>Top-Kunden nach Klicks</h2>
+                <h2>Filter</h2>
+                <?php $this->render_dashboard_filters($filters); ?>
+            </div>
+
+            <div class="kunden-table-wrap">
+                <h2>Top-Kunden nach Klicks (gefiltert)</h2>
                 <table class="widefat striped">
                     <thead>
                         <tr>
@@ -271,14 +296,14 @@ final class Kunden_Link_Tracker
                             </tr>
                         <?php endforeach; ?>
                     <?php else : ?>
-                        <tr><td colspan="3">Noch keine Kampagnen vorhanden.</td></tr>
+                        <tr><td colspan="3">Keine Daten für die aktuelle Filterung.</td></tr>
                     <?php endif; ?>
                     </tbody>
                 </table>
             </div>
 
             <div class="kunden-table-wrap">
-                <h2>Letzte Aufrufe</h2>
+                <h2>Aufrufe</h2>
                 <table class="widefat striped">
                     <thead>
                         <tr>
@@ -301,11 +326,170 @@ final class Kunden_Link_Tracker
                             </tr>
                         <?php endforeach; ?>
                     <?php else : ?>
-                        <tr><td colspan="5">Noch keine Klickdaten vorhanden.</td></tr>
+                        <tr><td colspan="5">Keine Klickdaten für die aktuelle Filterung.</td></tr>
                     <?php endif; ?>
                     </tbody>
                 </table>
+
+                <?php $this->render_pagination($filters, $total_pages); ?>
             </div>
+        </div>
+        <?php
+    }
+
+    private function get_dashboard_filters(): array
+    {
+        $period_options = ['all', '7', '30', '90', '365'];
+        $per_page_options = [10, 20, 30, 50];
+
+        $period = isset($_GET['period']) ? sanitize_text_field(wp_unslash($_GET['period'])) : 'all';
+        if (!in_array($period, $period_options, true)) {
+            $period = 'all';
+        }
+
+        $customer_id = isset($_GET['customer_id']) ? absint($_GET['customer_id']) : 0;
+        $per_page = isset($_GET['per_page']) ? absint($_GET['per_page']) : 50;
+        if (!in_array($per_page, $per_page_options, true)) {
+            $per_page = 50;
+        }
+
+        $current_page = isset($_GET['klt_page']) ? absint($_GET['klt_page']) : 1;
+        if ($current_page < 1) {
+            $current_page = 1;
+        }
+
+        return [
+            'period' => $period,
+            'customer_id' => $customer_id,
+            'per_page' => $per_page,
+            'current_page' => $current_page,
+            'period_options' => $period_options,
+            'per_page_options' => $per_page_options,
+        ];
+    }
+
+    private function build_visit_filter_where(array $filters): array
+    {
+        $conditions = [];
+        $params = [];
+
+        if ($filters['customer_id'] > 0) {
+            $conditions[] = 'c.id = %d';
+            $params[] = $filters['customer_id'];
+        }
+
+        if ($filters['period'] !== 'all') {
+            $days = (int) $filters['period'];
+            $from_timestamp = strtotime("-{$days} days", current_time('timestamp'));
+            $from_date = date('Y-m-d H:i:s', $from_timestamp);
+
+            $conditions[] = 'v.visited_at >= %s';
+            $params[] = $from_date;
+        }
+
+        return [
+            'sql' => empty($conditions) ? '' : 'WHERE ' . implode(' AND ', $conditions),
+            'params' => $params,
+        ];
+    }
+
+
+    private function prepare_query(string $sql, array $params): string
+    {
+        global $wpdb;
+
+        if (empty($params)) {
+            return $sql;
+        }
+
+        return $wpdb->prepare($sql, $params);
+    }
+
+    private function render_dashboard_filters(array $filters): void
+    {
+        global $wpdb;
+
+        $customers = $wpdb->get_results("SELECT id, customer_name FROM {$this->campaign_table()} ORDER BY customer_name ASC");
+        ?>
+        <form method="get">
+            <input type="hidden" name="page" value="kunden-tracker-dashboard" />
+            <input type="hidden" name="klt_page" value="1" />
+            <div class="kunden-filter-row">
+                <div>
+                    <label for="customer_id">Kunde</label>
+                    <select name="customer_id" id="customer_id">
+                        <option value="0">Alle Kunden</option>
+                        <?php foreach ($customers as $customer) : ?>
+                            <option value="<?php echo esc_attr((string) $customer->id); ?>" <?php selected($filters['customer_id'], (int) $customer->id); ?>>
+                                <?php echo esc_html($customer->customer_name); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="period">Zeitraum</label>
+                    <select name="period" id="period">
+                        <option value="all" <?php selected($filters['period'], 'all'); ?>>Gesamter Zeitraum</option>
+                        <option value="7" <?php selected($filters['period'], '7'); ?>>Letzte 7 Tage</option>
+                        <option value="30" <?php selected($filters['period'], '30'); ?>>Letzte 30 Tage</option>
+                        <option value="90" <?php selected($filters['period'], '90'); ?>>Letzte 90 Tage</option>
+                        <option value="365" <?php selected($filters['period'], '365'); ?>>Letzte 365 Tage</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="per_page">Einträge pro Seite</label>
+                    <select name="per_page" id="per_page">
+                        <?php foreach ($filters['per_page_options'] as $option) : ?>
+                            <option value="<?php echo esc_attr((string) $option); ?>" <?php selected($filters['per_page'], $option); ?>>
+                                <?php echo esc_html((string) $option); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="kunden-filter-actions">
+                    <?php submit_button('Filtern', 'primary', '', false); ?>
+                    <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=kunden-tracker-dashboard')); ?>">Zurücksetzen</a>
+                </div>
+            </div>
+        </form>
+        <?php
+    }
+
+    private function render_pagination(array $filters, int $total_pages): void
+    {
+        if ($total_pages <= 1) {
+            return;
+        }
+
+        $current_page = $filters['current_page'];
+        $previous_page = max(1, $current_page - 1);
+        $next_page = min($total_pages, $current_page + 1);
+
+        $base_args = [
+            'page' => 'kunden-tracker-dashboard',
+            'customer_id' => $filters['customer_id'],
+            'period' => $filters['period'],
+            'per_page' => $filters['per_page'],
+        ];
+
+        ?>
+        <div class="kunden-pagination">
+            <?php if ($current_page > 1) : ?>
+                <a class="button" href="<?php echo esc_url(add_query_arg(array_merge($base_args, ['klt_page' => $previous_page]), admin_url('admin.php'))); ?>">&larr; Zurück</a>
+            <?php else : ?>
+                <button class="button" disabled>&larr; Zurück</button>
+            <?php endif; ?>
+
+            <span>Seite <?php echo esc_html((string) $current_page); ?> von <?php echo esc_html((string) $total_pages); ?></span>
+
+            <?php if ($current_page < $total_pages) : ?>
+                <a class="button" href="<?php echo esc_url(add_query_arg(array_merge($base_args, ['klt_page' => $next_page]), admin_url('admin.php'))); ?>">Weiter &rarr;</a>
+            <?php else : ?>
+                <button class="button" disabled>Weiter &rarr;</button>
+            <?php endif; ?>
         </div>
         <?php
     }
