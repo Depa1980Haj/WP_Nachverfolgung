@@ -9,6 +9,7 @@ Das Plugin liegt im Ordner `kunden-link-tracker/`.
 ## Updates über GitHub
 Das Plugin sucht nach neuen Releases im GitHub-Repository und meldet diese in der WordPress-Pluginverwaltung.
 Automatische Updates sind für dieses Plugin standardmäßig aktiviert.
+Der aktuelle Stabilitätsfix ist in Version 1.3.2 enthalten.
 
 Standard-Repository:
 - `https://github.com/DWHS-BIZ/WP_Nachverfolgung`

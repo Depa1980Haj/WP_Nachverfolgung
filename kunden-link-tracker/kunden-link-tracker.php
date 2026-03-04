@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Kunden Link Tracker
  * Description: Erfasst Aufrufe über den Parameter campaign, verwaltet Kundencodes und zeigt Statistiken im Backend.
- * Version: 1.3.1
+ * Version: 1.3.2
  * Author: DWHS.BIZ
  * Plugin URI: https://dwhs.biz
  * Update URI: https://dwhs.biz/kunden-link-tracker
@@ -20,7 +20,7 @@ final class Kunden_Link_Tracker
 {
     private const OPTION_DB_VERSION = 'kunden_link_tracker_db_version';
     private const DB_VERSION = '1.0.0';
-    private const PLUGIN_VERSION = '1.3.1';
+    private const PLUGIN_VERSION = '1.3.2';
     private const GITHUB_REPOSITORY = 'DWHS-BIZ/WP_Nachverfolgung';
     private const CAMPAIGN_TABLE_SUFFIX = 'kunden_tracker_campaigns';
     private const VISIT_TABLE_SUFFIX = 'kunden_tracker_visits';
@@ -663,9 +663,9 @@ final class Kunden_Link_Tracker
         return $transient;
     }
 
-    public function plugins_api_handler($result, string $action, $args)
+    public function plugins_api_handler($result, $action, $args)
     {
-        if ($action !== 'plugin_information' || !isset($args->slug) || $args->slug !== 'kunden-link-tracker') {
+        if (!is_string($action) || $action !== 'plugin_information' || !is_object($args) || !isset($args->slug) || $args->slug !== 'kunden-link-tracker') {
             return $result;
         }
 
@@ -689,9 +689,9 @@ final class Kunden_Link_Tracker
         return $info;
     }
 
-    public function plugin_row_meta(array $links, string $file): array
+    public function plugin_row_meta($links, $file)
     {
-        if ($file !== plugin_basename(__FILE__)) {
+        if (!is_array($links) || $file !== plugin_basename(__FILE__)) {
             return $links;
         }
 
@@ -701,13 +701,13 @@ final class Kunden_Link_Tracker
         return $links;
     }
 
-    public function force_auto_updates_for_this_plugin(bool $update, $item): bool
+    public function force_auto_updates_for_this_plugin($update, $item)
     {
         if (is_object($item) && isset($item->plugin) && $item->plugin === plugin_basename(__FILE__)) {
             return true;
         }
 
-        return $update;
+        return (bool) $update;
     }
 
     private function get_github_repository(): string
@@ -725,7 +725,7 @@ final class Kunden_Link_Tracker
     {
         $cache_key = 'klt_latest_release_data';
         $cached = get_transient($cache_key);
-        if (is_array($cached) && isset($cached['version'], $cached['package'])) {
+        if (is_array($cached) && isset($cached['version'], $cached['package']) && is_string($cached['version']) && is_string($cached['package'])) {
             return $cached;
         }
 

@@ -4,7 +4,7 @@ Tags: campaign, tracking, kunden
 Requires at least: 6.0
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 
@@ -31,6 +31,10 @@ Wichtig:
 3. Menü "Kunden Tracker" öffnen.
 
 == Changelog ==
+= 1.3.2 =
+* Kritischen Fehler behoben: Filter-Callbacks ohne strikte Parametertypen (kompatibler mit unterschiedlichen WP/PHP-Kontexten).
+* Update-/Auto-Update-Hooks defensiver abgesichert.
+
 = 1.3.1 =
 * Plugin-Website-Link auf DWHS.BIZ gesetzt (kein 404 mehr).
 * GitHub-Updateprüfung robuster gemacht (Release-Asset-ZIP bevorzugt).
