@@ -2,10 +2,14 @@
 /**
  * Plugin Name: Kunden Link Tracker
  * Description: Erfasst Aufrufe über den Parameter campaign, verwaltet Kundencodes und zeigt Statistiken im Backend.
- * Version: 1.2.0
- * Author: Codex
+ * Version: 1.3.0
+ * Author: DWHS.BIZ
+ * Plugin URI: https://github.com/DWHS-BIZ/kunden-link-tracker
+ * Update URI: https://github.com/DWHS-BIZ/kunden-link-tracker
  * Requires at least: 6.0
  * Requires PHP: 7.4
+ * License: MIT
+ * License URI: https://opensource.org/licenses/MIT
  */
 
 if (!defined('ABSPATH')) {
@@ -16,6 +20,9 @@ final class Kunden_Link_Tracker
 {
     private const OPTION_DB_VERSION = 'kunden_link_tracker_db_version';
     private const DB_VERSION = '1.0.0';
+    private const PLUGIN_VERSION = '1.3.0';
+    private const GITHUB_REPOSITORY = 'DWHS-BIZ/kunden-link-tracker';
+    private const GITHUB_API_RELEASES = 'https://api.github.com/repos/DWHS-BIZ/kunden-link-tracker/releases/latest';
     private const CAMPAIGN_TABLE_SUFFIX = 'kunden_tracker_campaigns';
     private const VISIT_TABLE_SUFFIX = 'kunden_tracker_visits';
 
@@ -27,6 +34,9 @@ final class Kunden_Link_Tracker
         add_action('admin_menu', [$this, 'register_admin_menu']);
         add_action('admin_post_klt_create_campaign', [$this, 'handle_create_campaign']);
         add_action('admin_post_klt_delete_campaign', [$this, 'handle_delete_campaign']);
+
+        add_filter('pre_set_site_transient_update_plugins', [$this, 'check_for_plugin_update']);
+        add_filter('plugins_api', [$this, 'plugins_api_handler'], 10, 3);
     }
 
     public function activate(): void
@@ -611,6 +621,106 @@ final class Kunden_Link_Tracker
             echo '</div>';
         }
         echo '</div>';
+    }
+
+    public function check_for_plugin_update($transient)
+    {
+        if (!is_object($transient) || !isset($transient->checked)) {
+            return $transient;
+        }
+
+        $plugin_basename = plugin_basename(__FILE__);
+        if (!isset($transient->checked[$plugin_basename])) {
+            return $transient;
+        }
+
+        $release = $this->get_latest_github_release();
+        if ($release === null || empty($release['version']) || empty($release['package'])) {
+            return $transient;
+        }
+
+        if (version_compare(self::PLUGIN_VERSION, $release['version'], '>=')) {
+            return $transient;
+        }
+
+        $update = new stdClass();
+        $update->slug = 'kunden-link-tracker';
+        $update->plugin = $plugin_basename;
+        $update->new_version = $release['version'];
+        $update->url = 'https://github.com/' . self::GITHUB_REPOSITORY;
+        $update->package = $release['package'];
+
+        $transient->response[$plugin_basename] = $update;
+
+        return $transient;
+    }
+
+    public function plugins_api_handler($result, string $action, $args)
+    {
+        if ($action !== 'plugin_information' || !isset($args->slug) || $args->slug !== 'kunden-link-tracker') {
+            return $result;
+        }
+
+        $release = $this->get_latest_github_release();
+        if ($release === null) {
+            return $result;
+        }
+
+        $info = new stdClass();
+        $info->name = 'Kunden Link Tracker';
+        $info->slug = 'kunden-link-tracker';
+        $info->version = $release['version'] ?? self::PLUGIN_VERSION;
+        $info->author = '<a href="https://dwhs.biz">DWHS.BIZ</a>';
+        $info->homepage = 'https://github.com/' . self::GITHUB_REPOSITORY;
+        $info->requires = '6.0';
+        $info->requires_php = '7.4';
+        $info->download_link = $release['package'] ?? '';
+        $info->sections = [
+            'description' => 'Kunden Link Tracker für campaign-basierte Aufrufzuordnung.',
+            'changelog' => wp_kses_post(nl2br($release['body'] ?? 'Siehe GitHub Releases.')),
+        ];
+
+        return $info;
+    }
+
+    private function get_latest_github_release(): ?array
+    {
+        $response = wp_remote_get(
+            self::GITHUB_API_RELEASES,
+            [
+                'headers' => ['Accept' => 'application/vnd.github+json'],
+                'timeout' => 10,
+                'user-agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url('/'),
+            ]
+        );
+
+        if (is_wp_error($response)) {
+            return null;
+        }
+
+        $code = (int) wp_remote_retrieve_response_code($response);
+        if ($code !== 200) {
+            return null;
+        }
+
+        $body = json_decode((string) wp_remote_retrieve_body($response), true);
+        if (!is_array($body)) {
+            return null;
+        }
+
+        $tag_name = isset($body['tag_name']) ? (string) $body['tag_name'] : '';
+        $version = ltrim($tag_name, 'vV');
+        $package = isset($body['zipball_url']) ? (string) $body['zipball_url'] : '';
+
+        if ($version === '' || $package === '') {
+            return null;
+        }
+
+        return [
+            'version' => $version,
+            'package' => $package,
+            'body' => isset($body['body']) ? (string) $body['body'] : '',
+        ];
     }
 
     public function render_campaign_page(): void

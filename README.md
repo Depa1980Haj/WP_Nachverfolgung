@@ -1,23 +1,16 @@
 # Kunden Link Tracker – WordPress Plugin
 
-Installierbares Plugin im Ordner `kunden-link-tracker/`.
+Das Plugin liegt im Ordner `kunden-link-tracker/`.
 
-## Inhalt
-- `kunden-link-tracker/` – Plugin-Ordner für WordPress
-- `scripts/build-zip.sh` – erzeugt eine installierbare ZIP lokal
+## Installation
+1. Ordner `kunden-link-tracker` nach `wp-content/plugins/` kopieren.
+2. Plugin in WordPress aktivieren.
 
-## ZIP lokal erzeugen (nicht im Git)
-```bash
-bash scripts/build-zip.sh
-```
-Danach liegt die Datei unter:
-- `dist/kunden-link-tracker.zip`
+## Updates über GitHub
+Wenn im GitHub-Repository eine neue Release-Version (Tag, z. B. `v1.3.0`) vorhanden ist,
+wird diese in der WordPress-Pluginverwaltung als Update angeboten und kann direkt aktualisiert werden.
 
-## Installation in WordPress
-1. In WordPress: **Plugins → Installieren → Plugin hochladen**.
-2. Datei `dist/kunden-link-tracker.zip` auswählen.
-3. Aktivieren.
-4. Im Backend den Menüpunkt **Kunden Tracker** öffnen.
+Repository: `https://github.com/DWHS-BIZ/kunden-link-tracker`
 
 ## Verhalten
 - Aufruf ohne `campaign`-Parameter: **keine Speicherung**.
