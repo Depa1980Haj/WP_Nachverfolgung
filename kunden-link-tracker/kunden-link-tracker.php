@@ -234,6 +234,17 @@ final class Kunden_Link_Tracker
             LIMIT 10";
         $top_campaigns = $wpdb->get_results($this->prepare_query($top_campaigns_sql, $where_data['params']));
 
+        $daily_clicks = $this->get_last_7_days_clicks($filters);
+
+        $top_10_customers_sql = "SELECT c.customer_name, COUNT(v.id) AS total_visits
+            FROM {$this->visit_table()} v
+            INNER JOIN {$this->campaign_table()} c ON c.id = v.campaign_id
+            {$where_data['sql']}
+            GROUP BY c.id
+            ORDER BY total_visits DESC, c.customer_name ASC
+            LIMIT 10";
+        $top_10_customers = $wpdb->get_results($this->prepare_query($top_10_customers_sql, $where_data['params']));
+
         $offset = ($filters['current_page'] - 1) * $filters['per_page'];
         $visit_query_params = array_merge($where_data['params'], [$filters['per_page'], $offset]);
 
@@ -258,6 +269,11 @@ final class Kunden_Link_Tracker
                 .kunden-filter-row label { display:block; font-weight:600; margin-bottom:4px; }
                 .kunden-filter-actions { display:flex; gap:8px; }
                 .kunden-pagination { display:flex; align-items:center; gap:10px; margin-top:12px; }
+                .kunden-chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+                .kunden-chart-box { background:#fff; border:1px solid #dcdcde; border-radius:8px; padding:12px; }
+                .kunden-chart-box h3 { margin:0 0 8px; }
+                .kunden-chart-legend { font-size:12px; color:#646970; margin-top:8px; }
+                @media (max-width: 1024px) { .kunden-chart-grid { grid-template-columns:1fr; } }
             </style>
 
             <div class="kunden-tracker-grid">
@@ -274,6 +290,19 @@ final class Kunden_Link_Tracker
             <div class="kunden-table-wrap">
                 <h2>Filter</h2>
                 <?php $this->render_dashboard_filters($filters); ?>
+            </div>
+
+            <div class="kunden-chart-grid">
+                <div class="kunden-chart-box">
+                    <h3>Klicks pro Tag (letzte 7 Tage)</h3>
+                    <?php $this->render_bar_chart($daily_clicks, '#2271b1', 'Klicks'); ?>
+                    <div class="kunden-chart-legend">Zeigt den Tagesverlauf basierend auf den gesetzten Filtern.</div>
+                </div>
+                <div class="kunden-chart-box">
+                    <h3>Top 10 Kunden nach Klicks</h3>
+                    <?php $this->render_horizontal_top_chart($top_10_customers, '#00a32a'); ?>
+                    <div class="kunden-chart-legend">Top-Kunden gemäß aktueller Filterung.</div>
+                </div>
             </div>
 
             <div class="kunden-table-wrap">
@@ -492,6 +521,96 @@ final class Kunden_Link_Tracker
             <?php endif; ?>
         </div>
         <?php
+    }
+
+    private function get_last_7_days_clicks(array $filters): array
+    {
+        global $wpdb;
+
+        $where_data = $this->build_visit_filter_where($filters);
+        $since = date('Y-m-d 00:00:00', strtotime('-6 days', current_time('timestamp')));
+
+        $conditions = [];
+        if ($where_data['sql'] !== '') {
+            $conditions[] = substr($where_data['sql'], 6);
+        }
+        $conditions[] = 'v.visited_at >= %s';
+
+        $sql = "SELECT DATE(v.visited_at) AS visit_day, COUNT(v.id) AS total_visits
+            FROM {$this->visit_table()} v
+            INNER JOIN {$this->campaign_table()} c ON c.id = v.campaign_id
+            WHERE " . implode(' AND ', $conditions) . "
+            GROUP BY DATE(v.visited_at)
+            ORDER BY visit_day ASC";
+
+        $params = array_merge($where_data['params'], [$since]);
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
+
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['visit_day']] = (int) $row['total_visits'];
+        }
+
+        $result = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $day = date('Y-m-d', strtotime("-{$i} days", current_time('timestamp')));
+            $label = date_i18n('d.m.', strtotime($day));
+            $result[] = ['label' => $label, 'value' => $indexed[$day] ?? 0];
+        }
+
+        return $result;
+    }
+
+    private function render_bar_chart(array $data, string $color, string $label): void
+    {
+        $max = 1;
+        foreach ($data as $point) {
+            if ($point['value'] > $max) {
+                $max = $point['value'];
+            }
+        }
+
+        echo '<div style="display:flex;gap:8px;align-items:flex-end;height:180px;padding:12px;border:1px solid #f0f0f1;border-radius:6px;background:#fcfcfc;">';
+        foreach ($data as $point) {
+            $height = (int) round(($point['value'] / $max) * 140);
+            echo '<div style="flex:1;min-width:0;text-align:center;">';
+            echo '<div style="font-size:11px;color:#646970;">' . esc_html((string) $point['value']) . '</div>';
+            echo '<div style="height:' . esc_attr((string) $height) . 'px;background:' . esc_attr($color) . ';border-radius:4px 4px 0 0;"></div>';
+            echo '<div style="margin-top:6px;font-size:11px;color:#50575e;">' . esc_html($point['label']) . '</div>';
+            echo '</div>';
+        }
+        echo '</div>';
+    }
+
+    private function render_horizontal_top_chart(array $rows, string $color): void
+    {
+        if (empty($rows)) {
+            echo '<p>Keine Daten verfügbar.</p>';
+            return;
+        }
+
+        $max = 1;
+        foreach ($rows as $row) {
+            if ((int) $row->total_visits > $max) {
+                $max = (int) $row->total_visits;
+            }
+        }
+
+        echo '<div style="display:flex;flex-direction:column;gap:8px;">';
+        foreach ($rows as $row) {
+            $value = (int) $row->total_visits;
+            $width = (int) round(($value / $max) * 100);
+            echo '<div>';
+            echo '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">';
+            echo '<span>' . esc_html($row->customer_name) . '</span>';
+            echo '<strong>' . esc_html((string) $value) . '</strong>';
+            echo '</div>';
+            echo '<div style="height:12px;background:#f0f0f1;border-radius:999px;overflow:hidden;">';
+            echo '<div style="height:100%;width:' . esc_attr((string) $width) . '%;background:' . esc_attr($color) . ';"></div>';
+            echo '</div>';
+            echo '</div>';
+        }
+        echo '</div>';
     }
 
     public function render_campaign_page(): void

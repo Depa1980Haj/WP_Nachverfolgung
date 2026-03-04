@@ -16,6 +16,7 @@ Dieses Plugin ermöglicht dir:
 - Klicks inkl. Zeitpunkt, URI und Referer zu speichern
 - Statistiken in einem Dashboard anzuzeigen
 - Dashboard nach Kunde/Zeitraum zu filtern inkl. Pagination und Eintragsanzahl
+- Diagramme: Klicks pro Tag (letzte 7 Tage) und Top-10 Kunden
 
 Wichtig:
 - Ohne campaign-Parameter wird nichts gespeichert.
@@ -29,6 +30,7 @@ Wichtig:
 == Changelog ==
 = 1.2.0 =
 * Dashboard-Filter ergänzt: Kunde, Zeitraum, Einträge pro Seite und Vor/Zurück-Navigation.
+* Visualisierungen ergänzt: Tagesklicks (7 Tage) und Top-10 Kunden als Diagramme.
 
 = 1.1.0 =
 * Erste stabile Version mit Kampagnenverwaltung, Tracking und Dashboard.
