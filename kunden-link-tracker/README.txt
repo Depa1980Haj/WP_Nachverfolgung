@@ -4,7 +4,7 @@ Tags: campaign, tracking, kunden
 Requires at least: 6.0
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 
@@ -19,6 +19,7 @@ Dieses Plugin ermöglicht dir:
 - Dashboard nach Kunde/Zeitraum zu filtern inkl. Pagination und Eintragsanzahl
 - Diagramme: Klicks pro Tag (letzte 7 Tage) und Top-10 Kunden
 - Updates direkt über GitHub-Releases in der WordPress-Pluginverwaltung
+- Automatische Updates für dieses Plugin
 
 Wichtig:
 - Ohne campaign-Parameter wird nichts gespeichert.
@@ -30,6 +31,12 @@ Wichtig:
 3. Menü "Kunden Tracker" öffnen.
 
 == Changelog ==
+= 1.3.1 =
+* Plugin-Website-Link auf DWHS.BIZ gesetzt (kein 404 mehr).
+* GitHub-Updateprüfung robuster gemacht (Release-Asset-ZIP bevorzugt).
+* Auto-Updates für dieses Plugin standardmäßig aktiviert.
+* Repository per Filter `klt_github_repository` überschreibbar gemacht.
+
 = 1.3.0 =
 * Author auf DWHS.BIZ geändert.
 * Lizenz auf MIT (Open Source) geändert.

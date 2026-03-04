@@ -2,10 +2,10 @@
 /**
  * Plugin Name: Kunden Link Tracker
  * Description: Erfasst Aufrufe über den Parameter campaign, verwaltet Kundencodes und zeigt Statistiken im Backend.
- * Version: 1.3.0
+ * Version: 1.3.1
  * Author: DWHS.BIZ
- * Plugin URI: https://github.com/DWHS-BIZ/kunden-link-tracker
- * Update URI: https://github.com/DWHS-BIZ/kunden-link-tracker
+ * Plugin URI: https://dwhs.biz
+ * Update URI: https://dwhs.biz/kunden-link-tracker
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * License: MIT
@@ -20,9 +20,8 @@ final class Kunden_Link_Tracker
 {
     private const OPTION_DB_VERSION = 'kunden_link_tracker_db_version';
     private const DB_VERSION = '1.0.0';
-    private const PLUGIN_VERSION = '1.3.0';
-    private const GITHUB_REPOSITORY = 'DWHS-BIZ/kunden-link-tracker';
-    private const GITHUB_API_RELEASES = 'https://api.github.com/repos/DWHS-BIZ/kunden-link-tracker/releases/latest';
+    private const PLUGIN_VERSION = '1.3.1';
+    private const GITHUB_REPOSITORY = 'DWHS-BIZ/WP_Nachverfolgung';
     private const CAMPAIGN_TABLE_SUFFIX = 'kunden_tracker_campaigns';
     private const VISIT_TABLE_SUFFIX = 'kunden_tracker_visits';
 
@@ -37,6 +36,8 @@ final class Kunden_Link_Tracker
 
         add_filter('pre_set_site_transient_update_plugins', [$this, 'check_for_plugin_update']);
         add_filter('plugins_api', [$this, 'plugins_api_handler'], 10, 3);
+        add_filter('plugin_row_meta', [$this, 'plugin_row_meta'], 10, 2);
+        add_filter('auto_update_plugin', [$this, 'force_auto_updates_for_this_plugin'], 10, 2);
     }
 
     public function activate(): void
@@ -639,18 +640,25 @@ final class Kunden_Link_Tracker
             return $transient;
         }
 
-        if (version_compare(self::PLUGIN_VERSION, $release['version'], '>=')) {
-            return $transient;
+        $plugin_homepage = 'https://github.com/' . $this->get_github_repository();
+
+        if (version_compare(self::PLUGIN_VERSION, $release['version'], '<')) {
+            $update = new stdClass();
+            $update->slug = 'kunden-link-tracker';
+            $update->plugin = $plugin_basename;
+            $update->new_version = $release['version'];
+            $update->url = $plugin_homepage;
+            $update->package = $release['package'];
+            $transient->response[$plugin_basename] = $update;
+        } else {
+            $item = new stdClass();
+            $item->slug = 'kunden-link-tracker';
+            $item->plugin = $plugin_basename;
+            $item->new_version = self::PLUGIN_VERSION;
+            $item->url = $plugin_homepage;
+            $item->package = '';
+            $transient->no_update[$plugin_basename] = $item;
         }
-
-        $update = new stdClass();
-        $update->slug = 'kunden-link-tracker';
-        $update->plugin = $plugin_basename;
-        $update->new_version = $release['version'];
-        $update->url = 'https://github.com/' . self::GITHUB_REPOSITORY;
-        $update->package = $release['package'];
-
-        $transient->response[$plugin_basename] = $update;
 
         return $transient;
     }
@@ -662,16 +670,14 @@ final class Kunden_Link_Tracker
         }
 
         $release = $this->get_latest_github_release();
-        if ($release === null) {
-            return $result;
-        }
+        $plugin_homepage = 'https://github.com/' . $this->get_github_repository();
 
         $info = new stdClass();
         $info->name = 'Kunden Link Tracker';
         $info->slug = 'kunden-link-tracker';
         $info->version = $release['version'] ?? self::PLUGIN_VERSION;
         $info->author = '<a href="https://dwhs.biz">DWHS.BIZ</a>';
-        $info->homepage = 'https://github.com/' . self::GITHUB_REPOSITORY;
+        $info->homepage = $plugin_homepage;
         $info->requires = '6.0';
         $info->requires_php = '7.4';
         $info->download_link = $release['package'] ?? '';
@@ -683,13 +689,52 @@ final class Kunden_Link_Tracker
         return $info;
     }
 
+    public function plugin_row_meta(array $links, string $file): array
+    {
+        if ($file !== plugin_basename(__FILE__)) {
+            return $links;
+        }
+
+        $links[] = sprintf('<a href="%s" target="_blank" rel="noopener">GitHub</a>', esc_url('https://github.com/' . $this->get_github_repository()));
+        $links[] = '<a href="https://dwhs.biz" target="_blank" rel="noopener">DWHS.BIZ</a>';
+
+        return $links;
+    }
+
+    public function force_auto_updates_for_this_plugin(bool $update, $item): bool
+    {
+        if (is_object($item) && isset($item->plugin) && $item->plugin === plugin_basename(__FILE__)) {
+            return true;
+        }
+
+        return $update;
+    }
+
+    private function get_github_repository(): string
+    {
+        $repository = apply_filters('klt_github_repository', self::GITHUB_REPOSITORY);
+
+        if (!is_string($repository) || $repository === '' || strpos($repository, '/') === false) {
+            return self::GITHUB_REPOSITORY;
+        }
+
+        return trim($repository);
+    }
+
     private function get_latest_github_release(): ?array
     {
+        $cache_key = 'klt_latest_release_data';
+        $cached = get_transient($cache_key);
+        if (is_array($cached) && isset($cached['version'], $cached['package'])) {
+            return $cached;
+        }
+
+        $api_url = sprintf('https://api.github.com/repos/%s/releases/latest', $this->get_github_repository());
         $response = wp_remote_get(
-            self::GITHUB_API_RELEASES,
+            $api_url,
             [
                 'headers' => ['Accept' => 'application/vnd.github+json'],
-                'timeout' => 10,
+                'timeout' => 15,
                 'user-agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url('/'),
             ]
         );
@@ -710,17 +755,39 @@ final class Kunden_Link_Tracker
 
         $tag_name = isset($body['tag_name']) ? (string) $body['tag_name'] : '';
         $version = ltrim($tag_name, 'vV');
-        $package = isset($body['zipball_url']) ? (string) $body['zipball_url'] : '';
+
+        $package = '';
+        if (!empty($body['assets']) && is_array($body['assets'])) {
+            foreach ($body['assets'] as $asset) {
+                if (!is_array($asset)) {
+                    continue;
+                }
+                $asset_name = isset($asset['name']) ? (string) $asset['name'] : '';
+                $asset_url = isset($asset['browser_download_url']) ? (string) $asset['browser_download_url'] : '';
+                if ($asset_url !== '' && preg_match('/\.zip$/i', $asset_name)) {
+                    $package = $asset_url;
+                    break;
+                }
+            }
+        }
+
+        if ($package === '') {
+            $package = isset($body['zipball_url']) ? (string) $body['zipball_url'] : '';
+        }
 
         if ($version === '' || $package === '') {
             return null;
         }
 
-        return [
+        $release = [
             'version' => $version,
             'package' => $package,
             'body' => isset($body['body']) ? (string) $body['body'] : '',
         ];
+
+        set_transient($cache_key, $release, HOUR_IN_SECONDS);
+
+        return $release;
     }
 
     public function render_campaign_page(): void

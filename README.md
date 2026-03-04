@@ -7,10 +7,14 @@ Das Plugin liegt im Ordner `kunden-link-tracker/`.
 2. Plugin in WordPress aktivieren.
 
 ## Updates über GitHub
-Wenn im GitHub-Repository eine neue Release-Version (Tag, z. B. `v1.3.0`) vorhanden ist,
-wird diese in der WordPress-Pluginverwaltung als Update angeboten und kann direkt aktualisiert werden.
+Das Plugin sucht nach neuen Releases im GitHub-Repository und meldet diese in der WordPress-Pluginverwaltung.
+Automatische Updates sind für dieses Plugin standardmäßig aktiviert.
 
-Repository: `https://github.com/DWHS-BIZ/kunden-link-tracker`
+Standard-Repository:
+- `https://github.com/DWHS-BIZ/WP_Nachverfolgung`
+
+Optional kannst du das Ziel-Repository per Filter überschreiben:
+- `klt_github_repository` (Format: `owner/repo`)
 
 ## Verhalten
 - Aufruf ohne `campaign`-Parameter: **keine Speicherung**.
