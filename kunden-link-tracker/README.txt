@@ -4,7 +4,7 @@ Tags: campaign, tracking, kunden
 Requires at least: 6.0
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.3.2
+Stable tag: 1.3.3
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 
@@ -31,6 +31,10 @@ Wichtig:
 3. Menü "Kunden Tracker" öffnen.
 
 == Changelog ==
+= 1.3.3 =
+* Backend-Link auf stabile Projektseite umgestellt (statt möglichem 404-GitHub-Link).
+* Hinweis ergänzt: GitHub-Updatechecks benötigen ein öffentlich erreichbares Repository.
+
 = 1.3.2 =
 * Kritischen Fehler behoben: Filter-Callbacks ohne strikte Parametertypen (kompatibler mit unterschiedlichen WP/PHP-Kontexten).
 * Update-/Auto-Update-Hooks defensiver abgesichert.

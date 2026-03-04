@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Kunden Link Tracker
  * Description: Erfasst Aufrufe über den Parameter campaign, verwaltet Kundencodes und zeigt Statistiken im Backend.
- * Version: 1.3.2
+ * Version: 1.3.3
  * Author: DWHS.BIZ
  * Plugin URI: https://dwhs.biz
  * Update URI: https://dwhs.biz/kunden-link-tracker
@@ -20,8 +20,9 @@ final class Kunden_Link_Tracker
 {
     private const OPTION_DB_VERSION = 'kunden_link_tracker_db_version';
     private const DB_VERSION = '1.0.0';
-    private const PLUGIN_VERSION = '1.3.2';
+    private const PLUGIN_VERSION = '1.3.3';
     private const GITHUB_REPOSITORY = 'DWHS-BIZ/WP_Nachverfolgung';
+    private const PROJECT_URL = 'https://dwhs.biz/kunden-link-tracker';
     private const CAMPAIGN_TABLE_SUFFIX = 'kunden_tracker_campaigns';
     private const VISIT_TABLE_SUFFIX = 'kunden_tracker_visits';
 
@@ -640,7 +641,7 @@ final class Kunden_Link_Tracker
             return $transient;
         }
 
-        $plugin_homepage = 'https://github.com/' . $this->get_github_repository();
+        $plugin_homepage = self::PROJECT_URL;
 
         if (version_compare(self::PLUGIN_VERSION, $release['version'], '<')) {
             $update = new stdClass();
@@ -670,7 +671,7 @@ final class Kunden_Link_Tracker
         }
 
         $release = $this->get_latest_github_release();
-        $plugin_homepage = 'https://github.com/' . $this->get_github_repository();
+        $plugin_homepage = self::PROJECT_URL;
 
         $info = new stdClass();
         $info->name = 'Kunden Link Tracker';
@@ -695,8 +696,13 @@ final class Kunden_Link_Tracker
             return $links;
         }
 
-        $links[] = sprintf('<a href="%s" target="_blank" rel="noopener">GitHub</a>', esc_url('https://github.com/' . $this->get_github_repository()));
+        $links[] = sprintf('<a href="%s" target="_blank" rel="noopener">Projektseite</a>', esc_url(self::PROJECT_URL));
         $links[] = '<a href="https://dwhs.biz" target="_blank" rel="noopener">DWHS.BIZ</a>';
+
+        $repository = $this->get_github_repository();
+        if ($repository !== '') {
+            $links[] = sprintf('<a href="%s" target="_blank" rel="noopener">GitHub Repo</a>', esc_url('https://github.com/' . $repository));
+        }
 
         return $links;
     }
